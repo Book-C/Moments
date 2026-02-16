@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String   @id @default(cuid())
+  email              String   @unique
+  phone              String?  @unique
+  passwordHash       String
+  emailVerified      Boolean  @default(false)
+  phoneVerified      Boolean  @default(false)
+  emailVerifyCode    String?
+  phoneVerifyCode    String?
+  timezone           String   @default("America/New_York")
+  pushEnabled        Boolean  @default(true)
+  pushToken          String?  // Expo push token
+  pushPlatform       String?  // ios, android
+  emailDigestEnabled Boolean  @default(true)
+  digestDay          Int      @default(1) // 0=Sunday, 1=Monday, etc.
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  people             Person[]
+  events             Event[]
+  blockedContacts    BlockedContact[]
+  reports            Report[]
+  rateLimitLogs      RateLimitLog[]
+  scheduledReminders ScheduledReminder[]
+
+  @@map("users")
+}
+
+model Person {
+  id              String   @id @default(cuid())
+  userId          String
+  displayName     String
+  avatarUrl       String?
+  relationshipTag String?  // e.g., "friend", "family", "colleague"
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  identities   Identity[]
+  addresses    Address[]
+  celebrations Celebration[]
+  eventGuests  EventGuest[]
+
+  @@map("people")
+}
+
+enum SourceType {
+  PHONE
+  EMAIL
+  INSTAGRAM
+  FACEBOOK
+  MANUAL
+}
+
+model Identity {
+  id              String     @id @default(cuid())
+  personId        String
+  sourceType      SourceType
+  sourceUserId    String?    // External user ID if from social
+  normalizedPhone String?
+  normalizedEmail String?
+  username        String?    // Social media username
+  createdAt       DateTime   @default(now())
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([normalizedPhone])
+  @@index([normalizedEmail])
+  @@map("identities")
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  personId   String
+  label      String   @default("Home") // Home, Work, etc.
+  street     String
+  city       String
+  postalCode String
+  country    String   @default("US")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@map("addresses")
+}
+
+enum CelebrationType {
+  BIRTHDAY
+  ANNIVERSARY
+  LIFE_EVENT
+}
+
+model Celebration {
+  id              String          @id @default(cuid())
+  personId        String
+  type            CelebrationType
+  title           String?         // For life events, e.g., "Graduation"
+  date            DateTime
+  recurringRule   String?         // RRULE format, null for one-off
+  reminderOffsets Int[]           @default([7, 1, 0]) // Days before
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  person             Person              @relation(fields: [personId], references: [id], onDelete: Cascade)
+  scheduledReminders ScheduledReminder[]
+
+  @@map("celebrations")
+}
+
+model Event {
+  id              String    @id @default(cuid())
+  hostUserId      String
+  title           String
+  datetime        DateTime
+  location        String?
+  description     String?
+  inviteToken     String    @unique
+  inviteExpiresAt DateTime
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  host               User                @relation(fields: [hostUserId], references: [id], onDelete: Cascade)
+  guests             EventGuest[]
+  reports            Report[]
+  scheduledReminders ScheduledReminder[]
+
+  @@map("events")
+}
+
+enum GuestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  MAYBE
+}
+
+model EventGuest {
+  id           String      @id @default(cuid())
+  eventId      String
+  personId     String?     // If guest is a known person
+  invitedEmail String?     // For external invites
+  invitedPhone String?     // For external invites
+  guestName    String?     // Name provided during RSVP
+  status       GuestStatus @default(PENDING)
+  respondedAt  DateTime?
+  createdAt    DateTime    @default(now())
+
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  person Person? @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  @@map("event_guests")
+}
+
+model BlockedContact {
+  id           String   @id @default(cuid())
+  userId       String
+  blockedPhone String?
+  blockedEmail String?
+  reason       String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("blocked_contacts")
+}
+
+model Report {
+  id              String   @id @default(cuid())
+  reporterUserId  String
+  reportedEventId String?
+  reason          String
+  createdAt       DateTime @default(now())
+
+  reporter User   @relation(fields: [reporterUserId], references: [id], onDelete: Cascade)
+  event    Event? @relation(fields: [reportedEventId], references: [id], onDelete: SetNull)
+
+  @@map("reports")
+}
+
+model RateLimitLog {
+  id          String   @id @default(cuid())
+  userId      String
+  action      String   // e.g., "invite"
+  count       Int      @default(1)
+  windowStart DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, action, windowStart])
+  @@map("rate_limit_logs")
+}
+
+model ScheduledReminder {
+  id            String    @id @default(cuid())
+  userId        String
+  celebrationId String?
+  eventId       String?
+  scheduledFor  DateTime
+  sent          Boolean   @default(false)
+  sentAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  celebration Celebration? @relation(fields: [celebrationId], references: [id], onDelete: Cascade)
+  event       Event?       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([scheduledFor, sent])
+  @@map("scheduled_reminders")
+}
