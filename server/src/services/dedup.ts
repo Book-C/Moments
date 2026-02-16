@@ -1,9 +1,14 @@
-import { PrismaClient, Person, Identity } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { normalizePhone, normalizeEmail } from '../utils/normalize.js';
 
+// Use Prisma's generated types via inference
+type Person = Prisma.PersonGetPayload<{}>;
+type Identity = Prisma.IdentityGetPayload<{}>;
+type PersonWithIdentities = Prisma.PersonGetPayload<{ include: { identities: true } }>;
+
 export interface DuplicateSuggestion {
-  person1: Person & { identities: Identity[] };
-  person2: Person & { identities: Identity[] };
+  person1: PersonWithIdentities;
+  person2: PersonWithIdentities;
   matchType: 'phone' | 'email';
   matchValue: string;
 }
@@ -57,8 +62,8 @@ export async function getSuggestedDuplicates(
   const seenPairs = new Set<string>();
 
   // Build maps of normalized values to people
-  const phoneMap = new Map<string, (Person & { identities: Identity[] })[]>();
-  const emailMap = new Map<string, (Person & { identities: Identity[] })[]>();
+  const phoneMap = new Map<string, PersonWithIdentities[]>();
+  const emailMap = new Map<string, PersonWithIdentities[]>();
 
   for (const person of people) {
     for (const identity of person.identities) {

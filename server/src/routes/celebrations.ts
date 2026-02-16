@@ -1,11 +1,19 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { CelebrationType } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { scheduleCelebrationReminders } from '../services/notifications.js';
+
+// Define CelebrationType enum locally since Prisma generates it
+const CelebrationType = {
+  BIRTHDAY: 'BIRTHDAY',
+  ANNIVERSARY: 'ANNIVERSARY',
+  LIFE_EVENT: 'LIFE_EVENT',
+} as const;
+type CelebrationType = (typeof CelebrationType)[keyof typeof CelebrationType];
 
 const createCelebrationSchema = z.object({
   personId: z.string(),
-  type: z.nativeEnum(CelebrationType),
+  type: z.enum(['BIRTHDAY', 'ANNIVERSARY', 'LIFE_EVENT']),
   title: z.string().optional(), // Required for LIFE_EVENT
   date: z.string().transform((s) => new Date(s)),
   recurringRule: z.string().optional(), // RRULE format
@@ -139,8 +147,11 @@ const celebrationsRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     // Filter and sort by upcoming date
+    type CelebrationWithPerson = typeof celebrations[number];
+    type CelebrationWithNextDate = CelebrationWithPerson & { nextDate: Date };
+
     const upcoming = celebrations
-      .map((c) => {
+      .map((c: CelebrationWithPerson): CelebrationWithNextDate => {
         // For recurring events, calculate next occurrence
         if (c.recurringRule) {
           const nextDate = getNextOccurrence(c.date, now);
@@ -149,8 +160,8 @@ const celebrationsRoutes: FastifyPluginAsync = async (fastify) => {
         // For one-off events, use the actual date
         return { ...c, nextDate: c.date };
       })
-      .filter((c) => c.nextDate >= now && c.nextDate <= thirtyDaysFromNow)
-      .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime());
+      .filter((c: CelebrationWithNextDate) => c.nextDate >= now && c.nextDate <= thirtyDaysFromNow)
+      .sort((a: CelebrationWithNextDate, b: CelebrationWithNextDate) => a.nextDate.getTime() - b.nextDate.getTime());
 
     return upcoming;
   });

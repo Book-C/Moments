@@ -1,7 +1,9 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { GuestStatus } from '@prisma/client';
 import { normalizePhone, normalizeEmail } from '../utils/normalize.js';
+
+// Define GuestStatus type locally
+type GuestStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'MAYBE';
 
 const rsvpSchema = z.object({
   status: z.enum(['ACCEPTED', 'DECLINED', 'MAYBE']),

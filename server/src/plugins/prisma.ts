@@ -24,7 +24,7 @@ const prismaPlugin: FastifyPluginAsync = async (fastify) => {
   });
 
   // Middleware to encrypt fields before writing
-  prisma.$use(async (params, next) => {
+  prisma.$use(async (params: Prisma.MiddlewareParams, next: (params: Prisma.MiddlewareParams) => Promise<unknown>) => {
     const fields = ENCRYPTED_FIELDS[params.model || ''];
 
     if (fields && params.args?.data) {

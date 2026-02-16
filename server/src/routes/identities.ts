@@ -1,12 +1,21 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { SourceType } from '@prisma/client';
 import { normalizePhone, normalizeEmail, isValidPhone, isValidEmail } from '../utils/normalize.js';
 import { findMatchingPerson } from '../services/dedup.js';
 
+// Define SourceType enum locally
+const SourceType = {
+  PHONE: 'PHONE',
+  EMAIL: 'EMAIL',
+  INSTAGRAM: 'INSTAGRAM',
+  FACEBOOK: 'FACEBOOK',
+  MANUAL: 'MANUAL',
+} as const;
+type SourceType = (typeof SourceType)[keyof typeof SourceType];
+
 const createIdentitySchema = z.object({
   personId: z.string(),
-  sourceType: z.nativeEnum(SourceType),
+  sourceType: z.enum(['PHONE', 'EMAIL', 'INSTAGRAM', 'FACEBOOK', 'MANUAL']),
   phone: z.string().optional(),
   email: z.string().email().optional(),
   username: z.string().optional(),

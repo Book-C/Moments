@@ -55,14 +55,17 @@ export async function generateUserDigest(
     },
   });
 
+  type CelebrationWithPerson = typeof celebrations[number];
+  type EventType = typeof events[number];
+
   const items: DigestItem[] = [
-    ...celebrations.map((c) => ({
+    ...celebrations.map((c: CelebrationWithPerson) => ({
       type: 'celebration' as const,
       title: c.title || c.type.toLowerCase(),
       personName: c.person.displayName,
       date: c.date,
     })),
-    ...events.map((e) => ({
+    ...events.map((e: EventType) => ({
       type: 'event' as const,
       title: e.title,
       date: e.datetime,

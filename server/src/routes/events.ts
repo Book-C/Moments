@@ -1,7 +1,15 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { GuestStatus } from '@prisma/client';
 import { generateInviteToken, getInviteExpiry } from '../utils/token.js';
+
+// Define GuestStatus enum locally
+const GuestStatus = {
+  PENDING: 'PENDING',
+  ACCEPTED: 'ACCEPTED',
+  DECLINED: 'DECLINED',
+  MAYBE: 'MAYBE',
+} as const;
+type GuestStatus = (typeof GuestStatus)[keyof typeof GuestStatus];
 import { normalizePhone, normalizeEmail } from '../utils/normalize.js';
 import { scheduleEventReminders } from '../services/notifications.js';
 import { config } from '../config.js';
@@ -36,7 +44,8 @@ const eventsRoutes: FastifyPluginAsync = async (fastify) => {
       orderBy: { datetime: 'asc' },
     });
 
-    return events.map((e) => ({
+    type EventWithCount = typeof events[number];
+    return events.map((e: EventWithCount) => ({
       ...e,
       inviteLink: `${config.webRsvpUrl}/rsvp/${e.inviteToken}`,
     }));
@@ -257,11 +266,12 @@ const eventsRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     // Group guests by status
+    type GuestWithPerson = typeof event.guests[number];
     const grouped = {
-      accepted: event.guests.filter((g) => g.status === GuestStatus.ACCEPTED),
-      declined: event.guests.filter((g) => g.status === GuestStatus.DECLINED),
-      maybe: event.guests.filter((g) => g.status === GuestStatus.MAYBE),
-      pending: event.guests.filter((g) => g.status === GuestStatus.PENDING),
+      accepted: event.guests.filter((g: GuestWithPerson) => g.status === GuestStatus.ACCEPTED),
+      declined: event.guests.filter((g: GuestWithPerson) => g.status === GuestStatus.DECLINED),
+      maybe: event.guests.filter((g: GuestWithPerson) => g.status === GuestStatus.MAYBE),
+      pending: event.guests.filter((g: GuestWithPerson) => g.status === GuestStatus.PENDING),
     };
 
     return grouped;
